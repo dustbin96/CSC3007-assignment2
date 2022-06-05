@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+</head>
+
+<body>
+    <!-- Create a div where the graph will take place -->
+    <div id="my_dataviz"></div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // Setup svg using Bostock's margin convention
+
+        // set the dimensions and margins of the graph
+        const margin = { top: 20, right: 200, bottom: 35, left: 50 },
+            width = 960 - margin.left - margin.right,
+            height = 500 - margin.top - margin.bottom;
+
+        var svg = d3.select("#my_dataviz")
+            .classed("svg-container", true)
+            .append("svg")
+            .attr("viewBox", [0, 0, width + margin.left + margin.right, height + margin.top + margin.bottom])
+            .attr("style", "max-width: 100%; height: auto; height: intrinsic;")
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+        // .attr("width", width + margin.left + margin.right)
+        // .attr("height", height + margin.top + margin.bottom)
+
+        d3.csv('https://raw.githubusercontent.com/dustbin96/CSC3007-assignment2/main/data.csv').then(data => {
+            let cleanedData = [];
+            let level2Data = {};
+            let level2Title = [];
+            let count = 0;
+
+            for (let key in data) {
+                if (key == "columns") { break; };
+
+                level2Data[data[key].level_2] = parseInt(data[key].value);
+                count++;
+
+                if (key < 10) {
+                    level2Title.push(data[key].level_2);
+                };
+
+                if (count == 10) {
+                    level2Data["year"] = data[key].year;
+                    cleanedData.push(level2Data);
+                    level2Data = {};
+                    count = 0;
+                };
+            }
+            // Transpose the data into layers
+            const stack = d3.stack().keys(level2Title)
+                .order(d3.stackOrderNone)
+                .offset(d3.stackOffsetNone);
+
+            const stackedData = stack(cleanedData);
+
+            var xLabel = d3.map(cleanedData, function (d) { return (d.year) })
+
+            // Add X axis
+            var x = d3.scaleBand()
+                .domain(xLabel)
+                .range([0, width])
+                .padding([0.2])
+
+            svg.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x).tickSizeOuter(0));
+
+            // Add Y axis
+            var y = d3.scaleLinear()
+                .domain([0, 20000])
+                .range([height, 0]);
+
+            svg.append("g")
+                .call(d3.axisLeft(y));
+
+            // color palette = one color per subgroup
+            var color = ['#003f5c', '#2f4b7c', '#255e7e', '#665191', '#a05195', '#d45087', '#f95d6a', '#ff7c43', '#ffa600', '#e41a1c']
+            
+            var colors = d3.scaleOrdinal()
+                .domain(level2Title)
+                .range(color)
+
+            // create a tooltip
+            const tooltip = d3.select("#my_dataviz")
+                .append("div")
+                .style("opacity", 0)
+                .attr("class", "tooltip")
+                .style("background-color", "white")
+                .style("border", "solid")
+                .style("border-width", "2px")
+                .style("border-radius", "5px")
+                .style("padding", "5px")
+                .style("position", "absolute")
+
+            // Three function that change the tooltip when user hover / move / leave a cell
+            const mouseover = function (event, d) {
+                tooltip.style("opacity", 1)
+            }
+            const mousemove = function (event, d) {
+                console.log(d.data[d]);
+                tooltip
+                    .html("Crime Offences<br>" + (d[1] - d[0]))
+                    .style("left", (event.x + 40) + "px")
+                    .style("top", (event.y - 20) + "px")
+                    .style("text-align", "center")
+            }
+            const mouseleave = function (event, d) {
+                tooltip.style("opacity", 0)
+            }
+            // Show the bars
+            svg.append("g")
+                .selectAll("g")
+                // Enter in the stack data = loop key per key = group per group
+                .data(stackedData)
+                .enter().append("g")
+                .style("fill", function (d) { return colors(d.key); })
+                .selectAll("rect")
+                // enter a second time = loop subgroup per subgroup to add all rectangles
+                .data(function (d) { return d; })
+                .enter().append("rect")
+                .attr("x", function (d) { return x(d.data.year); })
+                .attr("y", function (d) { return y(d[1]); })
+                .attr("height", function (d) { return y(d[0]) - y(d[1]); })
+                .attr("width", x.bandwidth())
+                .on("mouseover", mouseover)
+                .on("mousemove", mousemove)
+                .on("mouseleave", mouseleave);
+
+            // Draw legend
+            var legend = svg.selectAll("legend")
+                .data(color)
+                .enter().append("g")
+                .attr("class", "legend")
+                .attr("transform", function (d, i) { return "translate(30," + i * 19 + ")"; });
+
+            legend.append("rect")
+                .attr("x", width - 18)
+                .attr("width", 18)
+                .attr("height", 18)
+                .style("fill", function (d, i) { return color.slice().reverse()[i]; });
+
+            legend.append("text")
+                .attr("x", width + 5)
+                .attr("y", 9)
+                .attr("dy", ".35em")
+                .style("text-anchor", "start")
+                .text(function (d, i) {
+                    return level2Title.slice().reverse()[i];
+                });
+        });
+
+
+    </script>
+</body>
+
+</html>
